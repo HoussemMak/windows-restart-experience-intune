@@ -379,6 +379,59 @@ restart's age into a false alarm. And where the anchor is uncertain it falls bac
 and prefixes the age with `>=`. Both choices can only *understate*. A monitoring tool that
 cries wolf gets switched off within a week.
 
+## The gap the portal cannot show you: configured, not running
+
+Enable Credential Guard, VBS or Memory Integrity through Intune and the profile reports
+**Succeeded**. The protection is not on. It turns on at the next restart — and unlike a Win32
+app, a configuration profile has **no restart behaviour, no grace period, no notification**.
+Nothing tells the user. Nothing tells you.
+
+On a machine that stays up three weeks, that is three weeks of a device counted as protected
+in your reporting while the protection is not running. The portal is reporting policy
+*delivery*, not policy *effect*.
+
+`Detect-SecurityNotEffective.ps1` closes the gap using a comparison Windows already publishes
+about itself:
+
+```
+Win32_DeviceGuard.SecurityServicesConfigured   what policy asked for
+Win32_DeviceGuard.SecurityServicesRunning      what is actually running
+```
+
+Anything in the first list and not the second is configured and not effective. No policy
+parsing, no guesswork.
+
+**The distinction that turns a detection into a decision** — the script separates the two
+causes, which need completely different responses:
+
+```
+ACTION | configured but NOT running: CredentialGuard | restart pending - restart resolves this
+ACTION | configured but NOT running: MemoryIntegrity | NO restart pending - restart will NOT
+         fix it, check hardware/firmware/licence/conflicting policy
+```
+
+The second is the serious one. No restart pending means no restart is coming to fix it — a
+hardware or firmware requirement, a licence, or a conflicting policy. That device is never
+going to become protected on its own, and nothing else will tell you.
+
+Exit `0` when nothing configured is failing to run, `1` otherwise. Read-only. Enable **Run
+script in 64-bit PowerShell**. `-IncludeOptionalFeatures` also reports features stuck in
+`EnablePending` — off by default because enumerating through DISM takes seconds and
+Remediation scripts run under a short timeout.
+
+**Three things it deliberately refuses to do**, learned from getting each of them wrong first:
+
+- **`0` in those arrays is a "none" sentinel, not a service id.** It is filtered explicitly
+  rather than left to PowerShell truthiness, which happens to work for `@(0)` and would report
+  a phantom `service0` for `@(0,2)`.
+- **Credential Guard running while nothing is "configured" is normal** — Windows 11 enables it
+  by default on eligible installs. Only the reverse direction is ever a finding.
+- **LSA protection is reported, never used as a verdict.** `RunAsPPL` tells you what was
+  configured; proving LSASS actually started protected has no dependable route here. An
+  earlier version treated "no event found" as "not running" and produced an ACTION verdict on
+  a healthy machine. A false alarm on a security report is the fastest way to get the whole
+  deployment switched off.
+
 ## Applying the policies
 
 The files in `policies/` are **Microsoft Graph payloads**, not portal import packages. Point
