@@ -107,6 +107,9 @@ policies/
   update-ring.json            Update ring - 2-day deadline, 2-day grace, reboot postponed
   feature-update.json         Feature update profile - the version target, and the version lock
 tools/
+  Detect-RestartReadiness.ps1 Intune Remediation detection script. One line per device:
+                              is a restart pending, from where, for how long, and will
+                              anything actually resolve it
   Get-UpdateEvidence.ps1      Device-side evidence collector. Standalone, PowerShell 5.1+.
                               Flags legacy policies found on a Windows 11 device
   expected-values.json        Supported baseline it checks for, plus the legacy block
@@ -338,6 +341,43 @@ Run elevated where you can; most readings work without it, but some event logs a
 task details need administrator rights to read fully.
 
 ---
+
+## Fleet view: which devices are not going to restart
+
+`Detect-RestartReadiness.ps1` is a **detection script for Intune Remediations**. Deploy it
+with no remediation script and you get a fleet report without changing anything on any device.
+
+Most pending-reboot scripts OR four registry keys together and report `true`. That tells you a
+restart is pending. It does not tell you whether it matters. This one answers the three
+questions that decide whether to act:
+
+| Question | Why it changes the answer |
+|---|---|
+| Is it **from Windows Update**? | `CBS` and `PendingFileRename` also fire on an ordinary app install. Treating them as equivalent means chasing update problems that are really an installer — or interrupting people for nothing. |
+| **How long** has it been pending? | A day is normal. Three weeks means the security updates are installed and not in effect. |
+| Will anything **resolve** it? | The script reads the `ConfigureDeadline*` policy, computes the effective deadline, and says whether it has already passed while the restart is still pending. |
+
+That last row is the one nothing else gives you. A native deadline that has passed with the
+restart still pending means the enforcement layer you are relying on is not working on that
+device — a policy conflict, a safeguard hold, a changed ring, a device offline at the wrong
+moment. **Nothing in the Intune portal surfaces it.**
+
+```
+READY  | nothing pending
+READY  | WU restart pending >=0.4d, within native window, restart due 2026-09-06T16:43Z | dl=2 grace=2 noAutoReboot=1
+ACTION | WU restart pending 4.1d | native deadline PASSED 2.1d ago - enforcement not applying
+ACTION | WU restart pending 9.0d | no ConfigureDeadline* policy on this device - nothing will enforce it
+REVIEW | non-WU restart pending 6.2d (CBS) - not a Windows Update restart
+```
+
+Exit `0` when there is nothing to do, `1` to surface the device in the Remediation report.
+Enable **Run script in 64-bit PowerShell**. The script is read-only.
+
+**Two rules it follows, and you should keep if you modify it.** The age is anchored on event 22
+**at or after the last boot** — an event from an already-resolved cycle would inflate a new
+restart's age into a false alarm. And where the anchor is uncertain it falls back to boot time
+and prefixes the age with `>=`. Both choices can only *understate*. A monitoring tool that
+cries wolf gets switched off within a week.
 
 ## Applying the policies
 
