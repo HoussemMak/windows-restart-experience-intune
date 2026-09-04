@@ -96,10 +96,19 @@ try {
         Get-CimInstance -Namespace 'root\Microsoft\Windows\DeviceGuard' -ClassName Win32_DeviceGuard -ErrorAction Stop
     }
 
+    $vbs          = $null
+    $hwHypervisor = $true   # assumed present until the platform says otherwise
+
     if (-not $dg) {
         $notes += 'DeviceGuard WMI unavailable'
     }
     else {
+        # AvailableSecurityProperties reports what the platform actually offers.
+        # Property 1 is hypervisor support - without it, nothing VBS-based can ever run,
+        # and no number of restarts will change that.
+        $avail = @($dg.AvailableSecurityProperties | ForEach-Object { [int]$_ })
+        if ($avail.Count -gt 0) { $hwHypervisor = ($avail -contains 1) }
+
         # 0 is the "none" sentinel in these arrays, NOT a service identifier. It must be
         # filtered explicitly. Relying on PowerShell truthiness here is a trap: @(0) happens
         # to evaluate false, so a device reporting "nothing configured" works by accident -
@@ -115,6 +124,7 @@ try {
         # VBS itself: 0 = not enabled, 1 = enabled but NOT running, 2 = running.
         # Status 1 is the whole point of this script.
         $vbs = [int]$dg.VirtualizationBasedSecurityStatus
+
         switch ($vbs) {
             0 { $notes += 'VBS not configured on this device' }
             1 { $findings += 'VBS enabled but NOT running' }
@@ -183,12 +193,31 @@ try {
         exit 0
     }
 
-    # This is the sentence that turns a detection into a decision.
-    $verdict = if ($restartPending) {
-        'restart pending - restart resolves this'
-    } else {
-        'NO restart pending - restart will NOT fix it, check hardware/firmware/licence/conflicting policy'
-    }
+    # This is the sentence that turns a detection into a decision - and the one place where
+    # being wrong costs the most.
+    #
+    # MEASURED CORRECTION. An earlier version keyed this purely on the pending-restart flags:
+    # no flag set meant "a restart will not fix this, look at hardware". That is wrong in the
+    # MOST COMMON case. Verified on a managed Windows 11 device: writing the Memory Integrity
+    # policy moved SecurityServicesConfigured from [0] to [2] immediately - and set no restart
+    # flag at all. Applying a security policy is not a servicing operation, so it does not
+    # touch WindowsUpdate\RebootRequired or CBS\RebootPending. The tool would have told you to
+    # go hunting through firmware for a device that simply needed rebooting.
+    #
+    # The platform capability is the honest discriminator, in this order:
+    $verdict =
+        if (-not $hwHypervisor) {
+            'platform reports NO hypervisor support - a restart will not fix this'
+        }
+        elseif ($vbs -eq 1) {
+            'VBS is enabled but not starting - check firmware and virtualisation settings; a restart alone may not be enough'
+        }
+        elseif ($restartPending) {
+            'restart pending - restart resolves this'
+        }
+        else {
+            'restart required to apply; if it persists after one, check firmware, licence or conflicting policy'
+        }
 
     Write-Output ('ACTION | ' + ($findings -join ' | ') + ' | ' + $verdict)
     exit 1

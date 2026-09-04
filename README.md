@@ -401,18 +401,35 @@ Win32_DeviceGuard.SecurityServicesRunning      what is actually running
 Anything in the first list and not the second is configured and not effective. No policy
 parsing, no guesswork.
 
-**The distinction that turns a detection into a decision** — the script separates the two
-causes, which need completely different responses:
+**Proven on a managed Windows 11 device.** Memory Integrity was configured through policy,
+then queried before and after a restart:
+
+| | `configured` | `running` | Verdict |
+|---|---|---|---|
+| Policy written, no restart yet | `[2]` | `[1]` | `ACTION \| configured but NOT running: MemoryIntegrity \| restart required to apply` |
+| After the restart | `[2]` | `[1,2]` | `EFFECTIVE \| services running: CredentialGuard,MemoryIntegrity` |
+
+Two things that measurement settled, and neither was obvious:
+
+**WMI reflects the policy immediately.** `SecurityServicesConfigured` moved from `[0]` to `[2]`
+the moment the policy was written — no restart needed. If it had only refreshed at boot, the
+gap would only be visible *after* the restart that closes it, and this tool would be pointless.
+
+**Applying a security policy sets no restart flag.** It is not a servicing operation, so it
+does not touch `WindowsUpdate\RebootRequired` or `CBS\RebootPending`. An earlier version of
+this script keyed its verdict on those flags: no flag meant "a restart will not fix this, go
+and check your hardware". That is wrong in the single most common case — a freshly applied
+policy waiting for a reboot. It would have sent you hunting through firmware for a device that
+just needed restarting.
+
+The platform capability is the honest discriminator, applied in this order:
 
 ```
-ACTION | configured but NOT running: CredentialGuard | restart pending - restart resolves this
-ACTION | configured but NOT running: MemoryIntegrity | NO restart pending - restart will NOT
-         fix it, check hardware/firmware/licence/conflicting policy
+platform reports NO hypervisor support        -> a restart will not fix this
+VBS enabled but not starting (status 1)       -> firmware / virtualisation settings; a restart alone may not be enough
+a restart is pending                          -> restart resolves this
+otherwise                                     -> restart required to apply; if it persists after one, check firmware, licence or conflicting policy
 ```
-
-The second is the serious one. No restart pending means no restart is coming to fix it — a
-hardware or firmware requirement, a licence, or a conflicting policy. That device is never
-going to become protected on its own, and nothing else will tell you.
 
 Exit `0` when nothing configured is failing to run, `1` otherwise. Read-only. Enable **Run
 script in 64-bit PowerShell**. `-IncludeOptionalFeatures` also reports features stuck in
