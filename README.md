@@ -449,6 +449,51 @@ Remediation scripts run under a short timeout.
   a healthy machine. A false alarm on a security report is the fastest way to get the whole
   deployment switched off.
 
+## A device does not have "a" pending restart
+
+It has a queue of independent demands, each raised by a different part of the stack, each with
+its own idea of how to get one, none of them aware of the others.
+
+Deploy four Win32 apps in one wave and each can raise its own restart negotiation, with its own
+grace period and its own countdown. Add a feature update, a servicing operation and a security
+policy waiting to take effect, and the user is interrupted several times for a single physical
+restart. Intune does not coalesce them, because nothing in Intune sees them all at once.
+
+`Get-RestartDemands.ps1` does. It counts them separately instead of OR-ing them into one
+boolean:
+
+```
+NONE     | no restart demand
+SINGLE   | 1 demand | WindowsUpdate(0.4d)
+COALESCE | 2 demands | WindowsUpdate; Config:MemoryIntegrity
+COALESCE | 3 demands, oldest 9.1d | WindowsUpdate(9.1d); IntuneApp:407e33e3:Hard(2.0d); Config:MemoryIntegrity
+```
+
+| Source | Where it comes from |
+|---|---|
+| `WindowsUpdate` | the COM signal and its registry key, dated from event 22 |
+| `CBS` | component servicing — `RebootPending` / `RebootInProgress` |
+| `FileRename` | `PendingFileRenameOperations`, with the number of queued operations |
+| `IntuneApp` | **per Win32 app**, from the Intune Management Extension |
+| `Config` | security configuration applied but not in effect until a restart |
+
+The `IntuneApp` row is the one that multiplies, and the one nothing else surfaces. The IME
+registry carries `RebootStatus`, `RebootReason` and `RebootSetTimeUTC` **per application** —
+so an app wanting a restart is visible, attributable and dated.
+
+**It does not pretend to know values it has not seen.** Observed when nothing is pending:
+`RebootStatus` is `Clean`, `RebootReason` is `None`, `RebootSetTimeUTC` is the `1/1/0001` null
+sentinel. The full set of non-`Clean` values is not documented, so anything that is not `Clean`
+or empty is reported with its raw value. An unfamiliar string in the report beats a demand
+silently dropped for not matching a guessed enumeration.
+
+Exit `1` at or above `-MinDemandsToFlag` (default 2) — one demand is normal, two is where
+coalescing starts paying for itself. Read-only.
+
+This is the inventory a single restart authority needs before it can replace N negotiations
+with one. It is also worth running on its own: when someone asks why a machine keeps wanting
+to reboot, this answers it in a line.
+
 ## Applying the policies
 
 The files in `policies/` are **Microsoft Graph payloads**, not portal import packages. Point
