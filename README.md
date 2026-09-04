@@ -323,8 +323,43 @@ three reasons:
 3. Building it properly is 15–25 days plus permanent support. If you genuinely have that audit
    requirement, that is an engagement, not a download.
 
-If your requirement really is counted rather than timed, the architecture is in the decision
-grid above: put it on top of the native layer, never instead of it.
+If your requirement really is counted rather than timed, here is the architecture, and one
+design choice that removes most of the cost.
+
+**Split the requirement in two.** "Show a message, allow two refusals, then force the restart"
+is two mechanisms of different kinds:
+
+| | What it does | Who provides it |
+|---|---|---|
+| The floor | the restart eventually happens | **Windows, natively and supported** |
+| The message and the count | what the user sees and what gets counted | **your code, necessarily** |
+
+The floor is `ConfigureDeadlineForFeatureUpdates` + `ConfigureDeadlineGracePeriodForFeatureUpdates`
++ no auto-reboot before the deadline — a worst case of about four days with the values in
+`policies/update-ring.json`. It is guaranteed, free, and unaffected by anything above it.
+
+**Then: your agent does not need to restart the machine.** A three-prompt cycle at four-hour
+intervals runs to roughly nine hours, which sits comfortably inside a four-day native window.
+So the agent can detect, prompt, count and log — and hand over. Windows restarts the device on
+its own deadline.
+
+That single decision removes the riskiest and most expensive parts to build and test: issuing
+the shutdown, the privileges it needs, multi-session handling, and sleep during the final
+countdown. The component stops *acting on the machine* and becomes one that *informs and
+records*.
+
+**Two details that decide whether it works:**
+
+- Trigger only on `WindowsUpdate.RebootRequired`. `CBS.RebootPending`,
+  `CBS.RebootInProgress` and `PendingFileRenameOperations` also fire on ordinary application
+  installs — count one of those and you will interrupt people over a restart that has nothing
+  to do with your update.
+- Count a deferral for the "Defer" button, **for closing the window, and for no response at
+  all**. Without those last two, the mechanism is defeated by clicking the X.
+
+**And ask this before quoting anything:** does "two refusals" protect a *number*, or the fact
+that the user *was warned and acknowledged it*? It is almost always the second — and then you
+need an acknowledgement trail, not an enforcement counter. Far cheaper, and nothing to defeat.
 
 ---
 
