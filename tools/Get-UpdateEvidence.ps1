@@ -433,7 +433,9 @@ function ConvertTo-MarkdownReport {
         $null = $sb.AppendLine()
         $drift = @($Comparison | Where-Object { $_.Status -ne 'OK' }).Count
         if ($drift -eq 0) {
-            $null = $sb.AppendLine('> Every expected value is present on the device. The policy reached it and applied.')
+            $null = $sb.AppendLine('> Every expected value is present on the device, so the policy reached it. Whether')
+            $null = $sb.AppendLine('> Windows acts on a given value is a separate question - see section 2b, and check')
+            $null = $sb.AppendLine('> that each setting is supported on this OS version before relying on it.')
         }
         else {
             $null = $sb.AppendLine("> $drift value(s) missing or divergent. A policy that is assigned in the tenant but")

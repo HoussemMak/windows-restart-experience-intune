@@ -23,20 +23,18 @@
     "",
     "Adjust the values to match your own ring, then run Get-UpdateEvidence.ps1."
   ],
-
   "expectedDeviceRegistry": {
     "ConfigureDeadlineForFeatureUpdates": 2,
-    "ConfigureDeadlineGracePeriodForFeatureUpdates": 2,
+    "ConfigureDeadlineGracePeriod": 2,
     "ConfigureDeadlineNoAutoReboot": 1
   },
-
   "$notes": {
     "ConfigureDeadlineForFeatureUpdates": "days until a feature update installs regardless of active hours. Range 0-30",
-    "ConfigureDeadlineGracePeriodForFeatureUpdates": "days between installation and the automatic restart. Range 0-7. Windows 11 21H2+",
-    "ConfigureDeadlineNoAutoReboot": "1 = do not auto-restart before the deadline. This is what makes the grace period a real window rather than a suggestion",
-    "$verify": "These are the CSP setting names. Confirm the exact value names against a real managed device before treating a mismatch as a deployment fault - run this collector on a pilot-ring device and read the PolicyManager.Update section of the report."
+    "ConfigureDeadlineGracePeriod": "days between installation and the automatic restart. VERIFIED on a managed Windows 11 device: an Intune update ring writes this GENERIC value name, not ConfigureDeadlineGracePeriodForFeatureUpdates. The feature-update-specific variant appears only if you set it explicitly via the Settings Catalog; when absent, Windows falls back to this one.",
+    "ConfigureDeadlineNoAutoReboot": "1 = do not auto-restart before the deadline. This is what turns the grace period into a real window rather than a suggestion.",
+    "$providerSuffixes": "The device also carries <Name>_ProviderSet and <Name>_WinningProvider beside each value. WinningProvider is the GUID of the channel that won the setting - the signal to look at when two policies fight over the same CSP.",
+    "$verified": "Value names confirmed on an Intune-enrolled Windows 11 24H2 device on 2026-09-04 by reading HKLM:\\SOFTWARE\\Microsoft\\PolicyManager\\current\\device\\Update directly."
   },
-
   "legacyWindows10Only": {
     "enabled": false,
     "$warning": [
