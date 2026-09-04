@@ -18,12 +18,52 @@ proves it landed on the device.
 
 ---
 
+## ⚠️ Correction — the notification layer is legacy on Windows 11
+
+**Raised by [James Robinson](https://learn.microsoft.com/en-us/windows/client-management/mdm/policy-csp-update#autorestartrequirednotificationdismissal), Intune & Windows MVP, after the first publication of this repository. He was right, and the problem is wider than the setting he named.**
+
+All **five** settings of the "enriched native baseline" below sit in the **Legacy Policies**
+section of the Update CSP, each carrying the same note:
+
+> *This is a legacy policy and isn't applicable for Windows 11. Legacy policies might be
+> removed in a future release.* — Applicable OS: **Windows 10, version 1703 and later.**
+
+`AutoRestartRequiredNotificationDismissal` · `ScheduleRestartWarning` ·
+`ScheduleImminentRestartWarning` · `SetAutoRestartNotificationDisable` ·
+`AutoRestartNotificationSchedule`
+
+**So the T−24h / T−4h / T−60min escalation has no supported basis on Windows 11.** Treat
+`policies/update-notifications.json` as **Windows 10 only**. It is kept here for the record
+and for Windows 10 estates, not as a recommendation for Windows 11.
+
+**What is unaffected**, and remains the substance of this repository:
+
+| Still supported on Windows 11 | Where |
+|---|---|
+| `ConfigureDeadlineForFeatureUpdates` | `policies/update-ring.json` |
+| `ConfigureDeadlineGracePeriodForFeatureUpdates` — explicitly lists Windows 11 21H2+ | `policies/update-ring.json` |
+| No auto-reboot before the deadline | `policies/update-ring.json` |
+| The whole evidence collector | `tools/Get-UpdateEvidence.ps1` |
+
+The deadline-plus-grace model is not legacy and is what the update ring actually configures.
+As far as we can find, Windows 11 offers **no supported replacement** for shaping the restart
+notification schedule: `UpdateNotificationLevel` only suppresses notifications, it does not
+shape them.
+
+**How this got missed, which is the useful part.** The five values *did* land on the test
+device — `Get-UpdateEvidence.ps1` confirmed every one of them present under `PolicyManager`.
+That proves the MDM channel delivered them. It does not prove Windows 11 honours them.
+Delivered, applied and honoured are three different claims, and this repository walked
+straight into the gap between the second and the third.
+
+---
+
 ## What is in here
 
 ```
 policies/
-  update-notifications.json   Settings Catalog profile - the five settings of the enriched
-                              native baseline (T-24h / T-4h / T-60min, explicit dismissal)
+  update-notifications.json   ⚠️ WINDOWS 10 ONLY - five legacy settings, not applicable to
+                              Windows 11. See the correction above before using it.
   update-ring.json            Update ring - 2-day deadline, 2-day grace, reboot postponed
   feature-update.json         Feature update profile - the version target, and the version lock
 tools/
@@ -57,7 +97,14 @@ the day of the deadline. Get this wrong and your "2-day grace" silently becomes 
 
 ---
 
-## The enriched native baseline
+## The enriched native baseline — ⚠️ Windows 10 only
+
+> **Do not apply this section to Windows 11.** All five settings below are legacy policies
+> that Microsoft documents as not applicable to Windows 11 and liable to removal. See the
+> [correction](#-correction--the-notification-layer-is-legacy-on-windows-11) above. The
+> section is kept because it remains valid for Windows 10 estates, and because the reasoning
+> around `User Dismissal` is worth preserving even though the setting is not available to you
+> on Windows 11.
 
 Between raw defaults and writing an agent there is a middle tier that costs nothing to
 configure and gets much closer to what the business actually wants. Five settings:
@@ -82,19 +129,21 @@ acknowledgement. In practice: three bounded, predictable reminders.
 
 The Settings Catalog also carries an *Engaged Restart* family:
 
-| Setting | Range |
+| Setting | Unit |
 |---|---|
-| `update_engagedrestartsnoozescheduleforfeatureupdates` | **1 to 3** |
-| `update_engagedrestartdeadlineforfeatureupdates` | days |
-| `update_engagedrestarttransitionscheduleforfeatureupdates` | days |
+| `EngagedRestartSnoozeScheduleForFeatureUpdates` | days (default 3) |
+| `EngagedRestartDeadlineForFeatureUpdates` | days |
+| `EngagedRestartTransitionScheduleForFeatureUpdates` | days |
 
-That first one bounds the number of **days** a user may snooze — the closest native thing to
-a number of deferrals. So the claim "nothing native counts anything" needs qualifying:
-Windows can bound a snooze, in days, not in clicks.
+The first bounds how long a user may snooze — the closest native thing to a number of
+deferrals. So the claim "nothing native bounds anything" needs qualifying: Windows can bound
+a snooze, in **days**, never in clicks.
 
-We left it alone. These belong to the legacy auto-restart model, which the `ConfigureDeadline*`
-policies *replace*. Mixing the two gives you two policies redefining the same CSPs and
-undefined behaviour on the device. Use one model or the other — never both.
+We left it alone, for a reason that has only strengthened: **the whole Engaged Restart family
+is also filed under Legacy Policies and documented as not applicable to Windows 11.** It
+belongs to the legacy auto-restart model that the `ConfigureDeadline*` policies replace.
+Mixing the two gives you two policies redefining the same CSPs and undefined behaviour on the
+device. Use one model or the other — and on Windows 11, that means the deadline model.
 
 ---
 
@@ -138,7 +187,11 @@ licensing. On a Business Premium estate the entry is simply not there. Any desig
 
 ## Decision grid
 
-| Criterion | Native | Enriched native | Counter (custom) |
+> On **Windows 11**, the "enriched native" column is not available to you — its five settings
+> are legacy and not applicable. The real choice there is between **Native** and **Counter**.
+> The column is kept for Windows 10 estates and because the cost comparison still holds.
+
+| Criterion | Native | Enriched native ⚠️ W10 only | Counter (custom) |
 |---|---|---|---|
 | Control | Temporal | Temporal + explicit warnings | Counted actions |
 | Microsoft support | Native | Native | **None** |
@@ -150,7 +203,7 @@ licensing. On a Business Premium estate the entry is simply not there. Any desig
 | Works offline | Native | Native | Must be built and tested |
 | Defeatable by a local admin | No | No | **Yes** — mitigate with WDAC/AppLocker |
 | Safety net if it breaks | — | — | Provided by the native layer |
-| **Verdict** | Enterprise standard | **Best value for money** | Written audit requirement only |
+| **Verdict** | **The answer on Windows 11** | Windows 10 estates only | Written audit requirement only |
 
 **Architecture rule, if you do build the counter:** it sits **on top of** the native layer,
 never instead of it. If the agent is killed, uninstalled or broken by a Windows update, the
