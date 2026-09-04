@@ -159,8 +159,14 @@ try {
     $polTxt = "dl=$deadlineDays grace=$graceDays noAutoReboot=$(if ($pol) { $pol.ConfigureDeadlineNoAutoReboot } else { '?' })"
 
     if ($nowUtc -gt $due.AddMinutes($OverdueToleranceMinutes)) {
-        $lateD = [Math]::Round(($nowUtc - $due).TotalDays, 1)
-        Write-Output "ACTION | WU restart pending $ageTxt | native deadline PASSED ${lateD}d ago - enforcement not applying | $polTxt"
+        # Rounding lateness to days prints "PASSED 0d ago" for anything under half a day,
+        # which reads as a bug and undermines the finding. Scale the unit to the value.
+        $late = $nowUtc - $due
+        $lateTxt =
+            if ($late.TotalHours -lt 1)  { [string][int]$late.TotalMinutes + 'min' }
+            elseif ($late.TotalDays -lt 1) { [string][int]$late.TotalHours + 'h' }
+            else { [string][Math]::Round($late.TotalDays, 1) + 'd' }
+        Write-Output "ACTION | WU restart pending $ageTxt | native deadline PASSED $lateTxt ago - enforcement not applying | $polTxt"
         exit 1
     }
 
