@@ -58,6 +58,46 @@ straight into the gap between the second and the third.
 
 ---
 
+## Verified on a real device
+
+Everything below was measured on an Intune-enrolled Windows 11 machine on 2026-09-04, by
+reading `PolicyManager` directly and by running a genuine 25H2 feature update end to end —
+not inferred from documentation.
+
+**The value names in `expected-values.json` were wrong in one place, and are now right.**
+An Intune update ring writes `ConfigureDeadlineGracePeriod`, the **generic** name — not
+`ConfigureDeadlineGracePeriodForFeatureUpdates`. The feature-update-specific variant appears
+only when you set it explicitly through the Settings Catalog; absent that, Windows falls back
+to the generic one. As first published, this collector would have reported a missing value
+that was never going to be there. `ConfigureDeadlineForFeatureUpdates` and
+`ConfigureDeadlineNoAutoReboot` were confirmed unchanged.
+
+**The legacy policies really are delivered, and really are on Windows 11.** All five sat in
+`PolicyManager` on that device: `ScheduleRestartWarning=24`,
+`ScheduleImminentRestartWarning=60`, `AutoRestartNotificationSchedule=240`,
+`AutoRestartRequiredNotificationDismissal=2`, `SetAutoRestartNotificationDisable=0`. Present,
+on an OS Microsoft documents as not applying them. That is the whole trap in one registry key,
+and it is exactly what made the original mistake feel like a success.
+
+**The enablement package behaves as described.** 25H2 was offered from the catalogue,
+downloaded and installed in minutes. Immediately afterwards `RebootRequired` was `True` while
+the OS still reported `24H2` — the switch only happens on restart. Any test instrumentation
+has to be in place *before* you trigger the offer.
+
+**And the architecture in [what is deliberately not here](#what-is-deliberately-not-here)
+was exercised, not just argued.** A counter agent configured to hand over rather than restart
+ran the full cycle against that real `RebootRequired` signal: two deferrals counted and
+logged, then handover — no restart issued, machine still up, `RebootRequired` still pending.
+Repeated runs afterwards changed nothing, which is the property that matters: an agent whose
+terminal state is not guarded will re-prompt the user on every pass.
+
+**Two things this did not prove**, stated so nobody over-reads it: the timings were compressed
+for the test, so the *signal* was real but the *pace* was not; and native enforcement — Windows
+restarting the device at its own deadline — would take four days to observe and rests here on
+Microsoft's documentation, not on measurement.
+
+---
+
 ## What is in here
 
 ```
