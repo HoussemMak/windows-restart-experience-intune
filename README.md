@@ -67,12 +67,19 @@ policies/
   update-ring.json            Update ring - 2-day deadline, 2-day grace, reboot postponed
   feature-update.json         Feature update profile - the version target, and the version lock
 tools/
-  Get-UpdateEvidence.ps1      Device-side evidence collector. Standalone, PowerShell 5.1+
-  expected-values.json        The values the collector checks for on the device
+  Get-UpdateEvidence.ps1      Device-side evidence collector. Standalone, PowerShell 5.1+.
+                              Flags legacy policies found on a Windows 11 device
+  expected-values.json        Supported baseline it checks for, plus the legacy block
+                              (opt-in, Windows 10 only)
 ```
 
 Three JSON payloads and one script. That is deliberately all of it — see
 [What is deliberately not here](#what-is-deliberately-not-here).
+
+The collector now carries the lesson from the correction: it reports any legacy policy sitting
+on the device, and on Windows 11 it states plainly that their presence proves delivery and
+nothing more. It refuses to merge the legacy block into the comparison on a Windows 11 device
+even if you enable it — reporting those as "OK" is how false confidence gets manufactured.
 
 ---
 

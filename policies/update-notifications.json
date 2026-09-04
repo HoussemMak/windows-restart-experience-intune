@@ -1,6 +1,6 @@
 {
-  "name": "CFG-UpdateNotifications",
-  "description": "Enriched native baseline: T-24h / T-4h / T-60min restart escalation, every notification requiring explicit user dismissal. Settings Catalog profile.",
+  "name": "CFG-UpdateNotifications-WINDOWS10-ONLY",
+  "description": "WINDOWS 10 ONLY - LEGACY. All five settings in this profile are legacy Update CSP policies that Microsoft documents as not applicable to Windows 11 and liable to removal (raised by James Robinson, Intune & Windows MVP). Do not assign this to Windows 11 devices: the values will be delivered into the registry and do nothing. There is no supported Windows 11 replacement for shaping the restart notification schedule - UpdateNotificationLevel only suppresses notifications. On Windows 11, enforcement comes from the ConfigureDeadline* family in update-ring.json, and any message-and-count layer has to be your own code. Kept for Windows 10 estates and for the record.",
   "platforms": "windows10",
   "technologies": "mdm",
   "settings": [

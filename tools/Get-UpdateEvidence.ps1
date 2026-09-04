@@ -317,6 +317,43 @@ function Get-DeviceReading {
 # Comparison against expected values
 # =================================================================================================
 
+function Get-LegacyPolicyFindings {
+    <#
+        The five notification-shaping policies below are documented by Microsoft as legacy
+        and NOT applicable to Windows 11. They may still be written into PolicyManager by
+        the MDM channel on a Windows 11 device - and do nothing.
+
+        That is the trap this whole repository exists to name: delivered, applied and
+        honoured are three different claims. A collector that reports these as "OK" because
+        it found them in the registry is manufacturing false confidence. So we report them
+        separately, and on Windows 11 we say plainly that presence proves nothing.
+    #>
+    param([Parameter(Mandatory)]$Reading)
+
+    $legacyNames = @(
+        'ScheduleRestartWarning'
+        'ScheduleImminentRestartWarning'
+        'AutoRestartNotificationSchedule'
+        'AutoRestartRequiredNotificationDismissal'
+        'SetAutoRestartNotificationDisable'
+        'EngagedRestartDeadline'
+        'EngagedRestartDeadlineForFeatureUpdates'
+        'EngagedRestartSnoozeSchedule'
+        'EngagedRestartSnoozeScheduleForFeatureUpdates'
+        'EngagedRestartTransitionSchedule'
+        'EngagedRestartTransitionScheduleForFeatureUpdates'
+    )
+
+    $actual = $Reading.Registry.'PolicyManager.Update'.Values
+    $found = @()
+    foreach ($name in $legacyNames) {
+        if ($actual.Contains($name)) {
+            $found += [ordered]@{ Setting = $name; Value = $actual[$name] }
+        }
+    }
+    return $found
+}
+
 function Compare-ExpectedValues {
     param(
         [Parameter(Mandatory)]$Reading,
@@ -353,7 +390,8 @@ function Compare-ExpectedValues {
 function ConvertTo-MarkdownReport {
     param(
         [Parameter(Mandatory)]$Reading,
-        [Parameter()]$Comparison
+        [Parameter()]$Comparison,
+        [Parameter()]$LegacyFindings
     )
     $sb = New-Object System.Text.StringBuilder
     $null = $sb.AppendLine("# Update evidence - ``$($Reading.Label)``")
@@ -401,6 +439,34 @@ function ConvertTo-MarkdownReport {
             $null = $sb.AppendLine("> $drift value(s) missing or divergent. A policy that is assigned in the tenant but")
             $null = $sb.AppendLine('> absent here has not applied. Check for a competing policy redefining the same CSP,')
             $null = $sb.AppendLine('> an MDM sync that stopped running, or a device that was offline.')
+        }
+        $null = $sb.AppendLine()
+    }
+
+    # --- Legacy policies actually on the device
+    if ($LegacyFindings -and @($LegacyFindings).Count -gt 0) {
+        $null = $sb.AppendLine('## 2b. Legacy policies present on this device')
+        $null = $sb.AppendLine()
+        $null = $sb.AppendLine('| Setting | Value on device |')
+        $null = $sb.AppendLine('|---|---|')
+        foreach ($f in $LegacyFindings) {
+            $null = $sb.AppendLine("| ``$($f.Setting)`` | $($f.Value) |")
+        }
+        $null = $sb.AppendLine()
+        if ($Reading.Os.IsWindows11) {
+            $null = $sb.AppendLine('> **This device is Windows 11, and these are legacy policies.** Microsoft documents')
+            $null = $sb.AppendLine('> them as not applicable to Windows 11 and liable to removal. They were delivered')
+            $null = $sb.AppendLine('> into the registry by the MDM channel. That is all their presence proves.')
+            $null = $sb.AppendLine('>')
+            $null = $sb.AppendLine('> **Do not read this table as evidence that they work.** Delivered, applied and')
+            $null = $sb.AppendLine('> honoured are three different claims, and only the first is shown here. If your')
+            $null = $sb.AppendLine('> restart experience depends on these values, it rests on nothing supported.')
+            $null = $sb.AppendLine('> Enforcement must come from the `ConfigureDeadline*` family instead.')
+        }
+        else {
+            $null = $sb.AppendLine('> This device is not Windows 11, so these legacy policies remain applicable to it.')
+            $null = $sb.AppendLine('> They are still legacy: Microsoft may remove them in a future release. Do not')
+            $null = $sb.AppendLine('> build anything new on them.')
         }
         $null = $sb.AppendLine()
     }
@@ -516,6 +582,23 @@ try {
         if (Test-Path -LiteralPath $ExpectedValuesPath) {
             $expectedFile = Get-Content -LiteralPath $ExpectedValuesPath -Raw -Encoding UTF8 | ConvertFrom-Json
             $expected = $expectedFile.expectedDeviceRegistry
+
+            # The legacy block is opt-in and Windows 10 only. Merging it into the supported
+            # baseline on a Windows 11 device is exactly how you end up reporting a green
+            # result for policies the OS ignores.
+            $legacyBlock = $expectedFile.PSObject.Properties['legacyWindows10Only']
+            if ($legacyBlock -and $legacyBlock.Value -and $legacyBlock.Value.enabled) {
+                if ($reading.Os.IsWindows11) {
+                    Write-Log 'legacyWindows10Only is enabled but this device is Windows 11. Those policies are not applicable here; comparing them would manufacture false confidence. Skipping them.' Warning
+                }
+                elseif ($legacyBlock.Value.settings) {
+                    foreach ($p in $legacyBlock.Value.settings.PSObject.Properties) {
+                        $expected | Add-Member -NotePropertyName $p.Name -NotePropertyValue $p.Value -Force
+                    }
+                    Write-Log 'legacyWindows10Only merged in - device is not Windows 11.' Info
+                }
+            }
+
             if ($expected) {
                 $comparison = Compare-ExpectedValues -Reading $reading -Expected $expected
                 $drift = @($comparison | Where-Object { $_.Status -ne 'OK' }).Count
@@ -524,6 +607,10 @@ try {
             else { Write-Log "No 'expectedDeviceRegistry' object in $ExpectedValuesPath - comparison skipped." Warning }
         }
         else { Write-Log "Expected-values file not found: $ExpectedValuesPath - comparison skipped." Warning }
+
+        # Independent of what you asked for: report any legacy policy actually sitting on the
+        # device. On Windows 11 this is the finding that matters most.
+        $legacyFindings = Get-LegacyPolicyFindings -Reading $reading
     }
 
     # --- Write reports
@@ -535,9 +622,10 @@ try {
     $jsonPath = Join-Path $OutputPath "Evidence-$stamp-$safeLabel.json"
     $mdPath   = Join-Path $OutputPath "Evidence-$stamp-$safeLabel.md"
 
-    $payload = [ordered]@{ Reading = $reading; Comparison = $comparison }
+    $payload = [ordered]@{ Reading = $reading; Comparison = $comparison; LegacyPolicies = $legacyFindings }
     $payload | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $jsonPath -Encoding UTF8
-    ConvertTo-MarkdownReport -Reading $reading -Comparison $comparison | Set-Content -LiteralPath $mdPath -Encoding UTF8
+    ConvertTo-MarkdownReport -Reading $reading -Comparison $comparison -LegacyFindings $legacyFindings |
+        Set-Content -LiteralPath $mdPath -Encoding UTF8
 
     # --- Console summary
     Write-Log "JSON reading : $jsonPath" Success
@@ -551,6 +639,11 @@ try {
     if ($comparison) {
         if ($exitCode -eq 0) { Write-Log 'All expected policy values are present on the device.' Success }
         else { Write-Log 'At least one expected policy value is missing or divergent on the device.' Warning }
+    }
+    if ($legacyFindings -and @($legacyFindings).Count -gt 0 -and $reading.Os.IsWindows11) {
+        Write-Log ''
+        Write-Log "$(@($legacyFindings).Count) legacy policy value(s) present on this Windows 11 device." Warning
+        Write-Log 'They were delivered, which does not mean Windows honours them. See section 2b of the report.' Warning
     }
 }
 catch {

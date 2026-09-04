@@ -1,33 +1,64 @@
 {
   "$comment": [
-    "WARNING - WINDOWS 10 ONLY.",
-    "All five settings below are legacy policies that Microsoft documents as NOT applicable",
-    "to Windows 11 and liable to removal. See the correction at the top of the README.",
-    "On Windows 11 they may be delivered into the registry and still do nothing: delivered",
-    "and honoured are different claims, which is exactly what this tool exists to separate.",
-    "",
     "Device-side policy values you expect to find under",
     "HKLM:\\SOFTWARE\\Microsoft\\PolicyManager\\current\\device\\Update",
-    "after your Intune notification profile has applied.",
+    "after your Intune policy has applied.",
     "",
-    "For Windows 11, compare against your deadline settings instead - the ConfigureDeadline*",
-    "family is not legacy. Adjust the values to match your own profile, then run",
-    "Get-UpdateEvidence.ps1."
+    "Two blocks, and the distinction matters:",
+    "",
+    "  expectedDeviceRegistry  - the supported baseline. The ConfigureDeadline* family sits",
+    "                            under 'Manage end user experience' in the Update CSP. It is",
+    "                            not legacy, and ConfigureDeadlineGracePeriodForFeatureUpdates",
+    "                            explicitly lists Windows 11 21H2 and later. This is the layer",
+    "                            that actually enforces the restart, so this is the layer that",
+    "                            carries your compliance.",
+    "",
+    "  legacyWindows10Only     - the five notification-shaping policies. Microsoft documents",
+    "                            them as legacy and NOT applicable to Windows 11. Left disabled.",
+    "                            Set enabled to true only on a Windows 10 estate.",
+    "",
+    "The collector always compares the supported block. It compares the legacy block only when",
+    "you enable it - and on a Windows 11 device it will tell you plainly that these values may",
+    "be present in the registry and still do nothing.",
+    "",
+    "Adjust the values to match your own ring, then run Get-UpdateEvidence.ps1."
   ],
 
   "expectedDeviceRegistry": {
-    "ScheduleRestartWarning": 24,
-    "AutoRestartNotificationSchedule": 240,
-    "ScheduleImminentRestartWarning": 60,
-    "SetAutoRestartNotificationDisable": 0,
-    "AutoRestartRequiredNotificationDismissal": 2
+    "ConfigureDeadlineForFeatureUpdates": 2,
+    "ConfigureDeadlineGracePeriodForFeatureUpdates": 2,
+    "ConfigureDeadlineNoAutoReboot": 1
   },
 
   "$notes": {
-    "ScheduleRestartWarning": "hours - long-lead restart warning. 2..24",
-    "AutoRestartNotificationSchedule": "minutes - reminder before auto-restart. 15..240",
-    "ScheduleImminentRestartWarning": "minutes - final warning. 15..60. Default is 15; 60 gives the user a real chance to react",
-    "SetAutoRestartNotificationDisable": "0 = notifications ENABLED. The label is counter-intuitive: 1 disables them",
-    "AutoRestartRequiredNotificationDismissal": "1 = auto dismissal, 2 = USER dismissal. 2 is the setting that matters: the notification does not clear itself, so the user cannot claim in good faith that they were never told"
+    "ConfigureDeadlineForFeatureUpdates": "days until a feature update installs regardless of active hours. Range 0-30",
+    "ConfigureDeadlineGracePeriodForFeatureUpdates": "days between installation and the automatic restart. Range 0-7. Windows 11 21H2+",
+    "ConfigureDeadlineNoAutoReboot": "1 = do not auto-restart before the deadline. This is what makes the grace period a real window rather than a suggestion",
+    "$verify": "These are the CSP setting names. Confirm the exact value names against a real managed device before treating a mismatch as a deployment fault - run this collector on a pilot-ring device and read the PolicyManager.Update section of the report."
+  },
+
+  "legacyWindows10Only": {
+    "enabled": false,
+    "$warning": [
+      "WINDOWS 10 ONLY. All five settings below are legacy policies that Microsoft documents",
+      "as not applicable to Windows 11 and liable to removal. Raised by James Robinson,",
+      "Intune & Windows MVP. See the correction at the top of the README.",
+      "They may still be delivered into the registry on Windows 11 and do nothing:",
+      "delivered and honoured are different claims."
+    ],
+    "settings": {
+      "ScheduleRestartWarning": 24,
+      "AutoRestartNotificationSchedule": 240,
+      "ScheduleImminentRestartWarning": 60,
+      "SetAutoRestartNotificationDisable": 0,
+      "AutoRestartRequiredNotificationDismissal": 2
+    },
+    "$notes": {
+      "ScheduleRestartWarning": "hours - long-lead restart warning. 2..24",
+      "AutoRestartNotificationSchedule": "minutes - reminder before auto-restart. 15..240",
+      "ScheduleImminentRestartWarning": "minutes - final warning. 15..60",
+      "SetAutoRestartNotificationDisable": "0 = notifications ENABLED. The label is inverted: 1 disables them",
+      "AutoRestartRequiredNotificationDismissal": "1 = auto dismissal, 2 = USER dismissal"
+    }
   }
 }
