@@ -1,0 +1,29 @@
+{
+  "$comment": [
+    "Device-side policy values you expect to find under",
+    "HKLM:\\SOFTWARE\\Microsoft\\PolicyManager\\current\\device\\Update",
+    "after your Intune notification profile has applied.",
+    "",
+    "These are the five settings of the 'enriched native' baseline described in the README.",
+    "Together they produce a T-24h / T-4h / T-60min escalation where every notification must",
+    "be dismissed explicitly by the user.",
+    "",
+    "Adjust the values to match your own profile, then run Get-UpdateEvidence.ps1."
+  ],
+
+  "expectedDeviceRegistry": {
+    "ScheduleRestartWarning": 24,
+    "AutoRestartNotificationSchedule": 240,
+    "ScheduleImminentRestartWarning": 60,
+    "SetAutoRestartNotificationDisable": 0,
+    "AutoRestartRequiredNotificationDismissal": 2
+  },
+
+  "$notes": {
+    "ScheduleRestartWarning": "hours - long-lead restart warning. 2..24",
+    "AutoRestartNotificationSchedule": "minutes - reminder before auto-restart. 15..240",
+    "ScheduleImminentRestartWarning": "minutes - final warning. 15..60. Default is 15; 60 gives the user a real chance to react",
+    "SetAutoRestartNotificationDisable": "0 = notifications ENABLED. The label is counter-intuitive: 1 disables them",
+    "AutoRestartRequiredNotificationDismissal": "1 = auto dismissal, 2 = USER dismissal. 2 is the setting that matters: the notification does not clear itself, so the user cannot claim in good faith that they were never told"
+  }
+}

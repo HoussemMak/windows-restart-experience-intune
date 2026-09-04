@@ -1,0 +1,16 @@
+# Evidence readings are device data. Never commit them: they carry machine names,
+# update history and event log excerpts from real endpoints.
+evidence/
+tools/evidence/
+*.Evidence-*.json
+*.Evidence-*.md
+
+# Local overrides
+expected-values.local.json
+*.local.json
+
+# OS / editor noise
+Thumbs.db
+.DS_Store
+.vscode/
+.idea/

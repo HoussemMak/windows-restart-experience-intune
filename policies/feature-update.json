@@ -1,0 +1,12 @@
+{
+  "displayName": "FeatureUpdate-Win11-25H2",
+  "description": "Targets Windows 11 version 25H2. WARNING: a feature update profile is a version LOCK as much as a trigger. While it is assigned, the device will not move to a later version - silently, with no error and no failed report.",
+  "featureUpdateVersion": "Windows 11, version 25H2",
+  "installLatestWindows10OnWindows11IneligibleDevice": false,
+  "rolloutSettings": {
+    "@odata.type": "#microsoft.graph.windowsUpdateRolloutSettings",
+    "offerStartDateTimeInUTC": null,
+    "offerEndDateTimeInUTC": null,
+    "offerIntervalInDays": null
+  }
+}

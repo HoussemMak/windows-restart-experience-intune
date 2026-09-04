@@ -1,0 +1,22 @@
+{
+  "@odata.type": "#microsoft.graph.windowsUpdateForBusinessConfiguration",
+  "displayName": "WUFB-Ring0-Pilot",
+  "description": "Pilot ring. No deferral, 2-day deadline, 2-day grace period, reboot postponed until after the deadline. The grace period is what gives the user a real window after the device reaches \"restart required\".",
+  "qualityUpdatesDeferralPeriodInDays": 0,
+  "featureUpdatesDeferralPeriodInDays": 0,
+  "deadlineForQualityUpdatesInDays": 2,
+  "deadlineForFeatureUpdatesInDays": 2,
+  "deadlineGracePeriodInDays": 2,
+  "postponeRebootUntilAfterDeadline": true,
+  "automaticUpdateMode": "autoInstallAtMaintenanceTime",
+  "businessReadyUpdatesOnly": "businessReadyOnly",
+  "microsoftUpdateServiceAllowed": true,
+  "driversExcluded": false,
+  "userPauseAccess": "disabled",
+  "updateNotificationLevel": "defaultNotifications",
+  "installationSchedule": {
+    "@odata.type": "#microsoft.graph.windowsUpdateActiveHoursInstall",
+    "activeHoursStart": "08:00:00.0000000",
+    "activeHoursEnd": "18:00:00.0000000"
+  }
+}
