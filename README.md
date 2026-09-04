@@ -1,5 +1,7 @@
 # Windows restart experience, with Intune
 
+![Bound the time, not the clicks — Windows enforces update restarts temporally, never by counting user actions](docs/concept.jpg)
+
 **There is no `MaxDeferrals` in Windows.**
 
 Not in Intune, not in Windows Autopatch, not in the Update CSP. Windows enforcement is
