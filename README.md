@@ -562,6 +562,8 @@ intervals runs to roughly nine hours, which sits comfortably inside a four-day n
 So the agent can detect, prompt, count and log — and hand over. Windows restarts the device on
 its own deadline.
 
+![The agent counts, Windows restarts — restart required, three prompts with two deferrals, then handover to the native deadline; the agent never sends a shutdown](docs/agent-flow.jpg)
+
 That single decision removes the riskiest and most expensive parts to build and test: issuing
 the shutdown, the privileges it needs, multi-session handling, and sleep during the final
 countdown. The component stops *acting on the machine* and becomes one that *informs and
