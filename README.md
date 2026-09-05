@@ -41,9 +41,24 @@ and for Windows 10 estates, not as a recommendation for Windows 11.
 | Still supported on Windows 11 | Where |
 |---|---|
 | `ConfigureDeadlineForFeatureUpdates` | `policies/update-ring.json` |
-| `ConfigureDeadlineGracePeriodForFeatureUpdates` — explicitly lists Windows 11 21H2+ | `policies/update-ring.json` |
+| `ConfigureDeadlineGracePeriod` — what the ring actually writes, see below | `policies/update-ring.json` |
 | No auto-reboot before the deadline | `policies/update-ring.json` |
 | The whole evidence collector | `tools/Get-UpdateEvidence.ps1` |
+
+**Which grace period, precisely.** There are two, they are not interchangeable, and the
+distinction is easy to get wrong:
+
+| Setting | What the documentation describes | Applicable OS |
+|---|---|---|
+| `ConfigureDeadlineGracePeriodForFeatureUpdates` | grace **for feature updates** | explicitly lists Windows 11 21H2+ |
+| `ConfigureDeadlineGracePeriod` | grace **for quality updates** | Windows 10 1903 and later |
+
+An Intune update ring writes the **generic** one — verified by reading `PolicyManager` on a
+managed device. So on a ring-configured device the feature-update grace period arrives through
+the documented fallback, not the feature-specific setting: *"If `ConfigureDeadlineForFeatureUpdates`
+is configured but this policy isn't, then the value configured by `ConfigureDeadlineGracePeriod`
+will be used."* Set the feature-specific one explicitly through the Settings Catalog and it
+takes precedence.
 
 The deadline-plus-grace model is not legacy and is what the update ring actually configures.
 As far as we can find, Windows 11 offers **no supported replacement** for shaping the restart
@@ -536,9 +551,11 @@ is two mechanisms of different kinds:
 | The floor | the restart eventually happens | **Windows, natively and supported** |
 | The message and the count | what the user sees and what gets counted | **your code, necessarily** |
 
-The floor is `ConfigureDeadlineForFeatureUpdates` + `ConfigureDeadlineGracePeriodForFeatureUpdates`
-+ no auto-reboot before the deadline — a worst case of about four days with the values in
-`policies/update-ring.json`. It is guaranteed, free, and unaffected by anything above it.
+The floor is `ConfigureDeadlineForFeatureUpdates` + a grace period + no auto-reboot before the
+deadline — a worst case of about four days with the values in `policies/update-ring.json`. It
+is guaranteed, free, and unaffected by anything above it. On a ring-configured device that
+grace period comes from `ConfigureDeadlineGracePeriod` through the documented fallback, not
+from the feature-update-specific setting; see [which grace period, precisely](#verified-on-a-real-device).
 
 **Then: your agent does not need to restart the machine.** A three-prompt cycle at four-hour
 intervals runs to roughly nine hours, which sits comfortably inside a four-day native window.
